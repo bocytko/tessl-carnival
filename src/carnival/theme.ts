@@ -14,6 +14,10 @@ export const theme = {
     stripeB: '#fff8e7',
     water: '#5ec8f2',
     wood: '#8a5a3b',
+    red: '#ff3b3b',
+    orange: '#ff9f1c',
+    green: '#39ff14',
+    purple: '#b14aed',
   },
   font: {
     family: '"Trebuchet MS", "Segoe UI", system-ui, sans-serif',
