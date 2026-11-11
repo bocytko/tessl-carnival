@@ -100,12 +100,13 @@ export function fire(state: SpaceInvadersState): boolean {
   return true;
 }
 
-function hitsInvader(p: Projectile, invader: Invader): boolean {
+/** Whether a shot that rose from `fromY` to `p.y` this step crossed the invader. */
+function hitsInvader(p: Projectile, fromY: number, invader: Invader): boolean {
   return (
     p.x >= invader.x &&
     p.x <= invader.x + INVADER_WIDTH &&
-    p.y >= invader.y &&
-    p.y <= invader.y + INVADER_HEIGHT
+    p.y <= invader.y + INVADER_HEIGHT &&
+    fromY >= invader.y
   );
 }
 
@@ -136,9 +137,14 @@ export function step(state: SpaceInvadersState, dt: number, random = Math.random
   if (atEdge) state.direction = state.direction === 1 ? -1 : 1;
 
   if (state.shot) {
-    state.shot.y -= SHOT_SPEED * dt;
     const shot = state.shot;
-    const hit = state.invaders.find((i) => hitsInvader(shot, i));
+    const fromY = shot.y;
+    shot.y -= SHOT_SPEED * dt;
+    // Check the whole path, so a fast shot can't skip an invader, and hit the
+    // lowest invader it crossed first.
+    const hit = state.invaders
+      .filter((i) => hitsInvader(shot, fromY, i))
+      .reduce<Invader | undefined>((low, i) => (low && low.y >= i.y ? low : i), undefined);
     if (hit) {
       state.score += hit.points;
       state.invaders = state.invaders.filter((i) => i !== hit);
@@ -270,7 +276,10 @@ export const spaceInvaders: CarnivalGame = {
       if (event.key === 'ArrowLeft' || event.key === 'a') held.left = true;
       else if (event.key === 'ArrowRight' || event.key === 'd') held.right = true;
       else if (event.key === ' ') {
+        // Firing leaves the mouse in charge of movement.
         if (!event.repeat) restartOrFire();
+        event.preventDefault();
+        return;
       } else return;
       pointerX = null;
       event.preventDefault();
@@ -278,6 +287,11 @@ export const spaceInvaders: CarnivalGame = {
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft' || event.key === 'a') held.left = false;
       if (event.key === 'ArrowRight' || event.key === 'd') held.right = false;
+    };
+    // A key released outside the window never sends keyup.
+    const onBlur = () => {
+      held.left = false;
+      held.right = false;
     };
     const toCanvasX = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -292,6 +306,7 @@ export const spaceInvaders: CarnivalGame = {
     };
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
     canvas.addEventListener('pointermove', onMove);
     canvas.addEventListener('pointerdown', onDown);
 
@@ -323,6 +338,7 @@ export const spaceInvaders: CarnivalGame = {
       cancelAnimationFrame(frame);
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerdown', onDown);
     };

@@ -58,6 +58,27 @@ describe('space invaders', () => {
     expect(state.shot).toBeNull();
   });
 
+  it('hits an invader the shot passes through within one step', () => {
+    const state = createState();
+    const target = invader(200, 196, 10);
+    state.invaders = [target];
+    state.shot = { x: 200 + INVADER_WIDTH / 2, y: 221 };
+    step(state, 0.05);
+    expect(state.score).toBe(10);
+    expect(state.shot).toBeNull();
+  });
+
+  it('hits the lowest invader when the shot crosses two in one step', () => {
+    const state = createState();
+    const high = invader(200, 176, 40);
+    const low = invader(200, 200, 10);
+    state.invaders = [high, low];
+    state.shot = { x: 200 + INVADER_WIDTH / 2, y: 224 };
+    step(state, 0.05);
+    expect(state.score).toBe(10);
+    expect(state.invaders).toEqual([high]);
+  });
+
   it('frees the shot when it leaves the top of the screen', () => {
     const state = createState();
     state.shot = { x: 5, y: 1 };
