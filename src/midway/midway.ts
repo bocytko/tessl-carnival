@@ -109,6 +109,8 @@ export function startMidway(canvas: HTMLCanvasElement, options: MidwayOptions): 
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let nextFloater = 2;
   let inReach: BoothSlot | undefined;
+  // Escape hides the card and prompt for the booth in reach until it changes.
+  let dismissed = false;
   let destination: Point | undefined;
 
   let dpr = 1;
@@ -159,6 +161,9 @@ export function startMidway(canvas: HTMLCanvasElement, options: MidwayOptions): 
     } else if (PLAY_KEYS.has(event.code) && !isControl(event.target) && inReach?.gameId) {
       event.preventDefault();
       play(inReach);
+    } else if (event.code === 'Escape' && inReach && !dismissed) {
+      dismissed = true;
+      options.onReach(undefined);
     }
   };
   const onKeyUp = (event: KeyboardEvent) => keys.delete(event.code);
@@ -379,7 +384,7 @@ export function startMidway(canvas: HTMLCanvasElement, options: MidwayOptions): 
     drawFloaters(ctx, floaters);
 
     // The prompt over the booth in reach, at full resolution.
-    if (inReach?.gameId) {
+    if (inReach?.gameId && !dismissed) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const c = toScreen(inReach.x + 1, inReach.y + 1);
       label(
@@ -425,6 +430,7 @@ export function startMidway(canvas: HTMLCanvasElement, options: MidwayOptions): 
     const reach = boothInReach(map, player);
     if (reach !== inReach) {
       inReach = reach;
+      dismissed = false;
       options.onReach(reach);
     }
 
