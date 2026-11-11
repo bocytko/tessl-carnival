@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   COLUMNS,
   DROP,
+  FIRE_INTERVAL,
   INVADER_HEIGHT,
   INVADER_WIDTH,
   LIVES,
@@ -41,31 +42,58 @@ describe('space invaders', () => {
     expect(points).toEqual([...points].sort((a, b) => b - a));
   });
 
-  it('allows only one shot in the air at a time', () => {
+  it('waits FIRE_INTERVAL between shots', () => {
     const state = createState();
     expect(fire(state)).toBe(true);
     expect(fire(state)).toBe(false);
+    step(state, FIRE_INTERVAL);
+    expect(fire(state)).toBe(true);
+    expect(state.shots).toHaveLength(2);
+  });
+
+  it('keeps firing while the fire button is held', () => {
+    const state = createState();
+    state.firing = true;
+    for (let i = 0; i < 5; i++) step(state, FIRE_INTERVAL);
+    expect(state.shots).toHaveLength(5);
+    state.firing = false;
+    step(state, FIRE_INTERVAL);
+    expect(state.shots).toHaveLength(5);
+  });
+
+  it('lets each of two shots hit its own invader', () => {
+    const state = createState();
+    const left = invader(200, 200, 10);
+    const right = invader(400, 200, 20);
+    state.invaders = [left, right, invader(600, 100)];
+    state.shots = [
+      { x: 200 + INVADER_WIDTH / 2, y: 200 + INVADER_HEIGHT / 2 },
+      { x: 400 + INVADER_WIDTH / 2, y: 200 + INVADER_HEIGHT / 2 },
+    ];
+    step(state, 0);
+    expect(state.score).toBe(30);
+    expect(state.shots).toHaveLength(0);
   });
 
   it('scores a hit and removes the invader', () => {
     const state = createState();
     const target = invader(200, 200, 30);
     state.invaders = [target, invader(400, 200)];
-    state.shot = { x: 200 + INVADER_WIDTH / 2, y: 200 + INVADER_HEIGHT / 2 };
+    state.shots = [{ x: 200 + INVADER_WIDTH / 2, y: 200 + INVADER_HEIGHT / 2 }];
     step(state, 0);
     expect(state.score).toBe(30);
     expect(state.invaders).not.toContain(target);
-    expect(state.shot).toBeNull();
+    expect(state.shots).toHaveLength(0);
   });
 
   it('hits an invader the shot passes through within one step', () => {
     const state = createState();
     const target = invader(200, 196, 10);
     state.invaders = [target];
-    state.shot = { x: 200 + INVADER_WIDTH / 2, y: 221 };
+    state.shots = [{ x: 200 + INVADER_WIDTH / 2, y: 221 }];
     step(state, 0.05);
     expect(state.score).toBe(10);
-    expect(state.shot).toBeNull();
+    expect(state.shots).toHaveLength(0);
   });
 
   it('hits the lowest invader when the shot crosses two in one step', () => {
@@ -73,18 +101,17 @@ describe('space invaders', () => {
     const high = invader(200, 176, 40);
     const low = invader(200, 200, 10);
     state.invaders = [high, low];
-    state.shot = { x: 200 + INVADER_WIDTH / 2, y: 224 };
+    state.shots = [{ x: 200 + INVADER_WIDTH / 2, y: 224 }];
     step(state, 0.05);
     expect(state.score).toBe(10);
     expect(state.invaders).toEqual([high]);
   });
 
-  it('frees the shot when it leaves the top of the screen', () => {
+  it('drops a shot when it leaves the top of the screen', () => {
     const state = createState();
-    state.shot = { x: 5, y: 1 };
+    state.shots = [{ x: 5, y: 1 }];
     step(state, 0.1);
-    expect(state.shot).toBeNull();
-    expect(fire(state)).toBe(true);
+    expect(state.shots).toHaveLength(0);
   });
 
   it('drops and turns round when the invaders reach a side', () => {
@@ -136,7 +163,7 @@ describe('space invaders', () => {
   it('sends a new, faster wave when every invader is shot', () => {
     const state = createState();
     state.invaders = [invader(200, 200)];
-    state.shot = { x: 200 + INVADER_WIDTH / 2, y: 200 + INVADER_HEIGHT / 2 };
+    state.shots = [{ x: 200 + INVADER_WIDTH / 2, y: 200 + INVADER_HEIGHT / 2 }];
     step(state, 0);
     expect(state.wave).toBe(2);
     expect(state.invaders).toHaveLength(ROWS.length * COLUMNS);

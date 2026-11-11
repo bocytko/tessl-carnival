@@ -8,6 +8,8 @@ export const PLAYER_Y = HEIGHT - 50;
 export const PLAYER_SPEED = 320;
 export const PLAYER_WIDTH = 44;
 export const SHOT_SPEED = 520;
+/** The shortest time between two shots, in seconds. */
+export const FIRE_INTERVAL = 0.02;
 export const BOMB_SPEED = 200;
 export const INVADER_WIDTH = 36;
 export const INVADER_HEIGHT = 24;
@@ -43,8 +45,12 @@ export interface Projectile {
 
 export interface SpaceInvadersState {
   invaders: Invader[];
-  /** The player's shot. Only one can be in the air at a time. */
-  shot: Projectile | null;
+  /** The player's shots in the air. */
+  shots: Projectile[];
+  /** Seconds until the cannon can fire again. */
+  fireCooldown: number;
+  /** Whether the fire button is held, which keeps the cannon firing. */
+  firing: boolean;
   bombs: Projectile[];
   playerX: number;
   /** -1 moves left, 1 moves right, 0 stands still. */
@@ -73,7 +79,9 @@ export function createWave(): Invader[] {
 export function createState(): SpaceInvadersState {
   return {
     invaders: createWave(),
-    shot: null,
+    shots: [],
+    fireCooldown: 0,
+    firing: false,
     bombs: [],
     playerX: WIDTH / 2,
     move: 0,
@@ -93,10 +101,11 @@ export function marchSpeed(state: SpaceInvadersState): number {
   return 30 + 10 * (state.wave - 1) + (lost / total) * 150;
 }
 
-/** Fires the player's shot. Returns false if a shot is already in the air. */
+/** Fires a shot. Returns false if the cannon fired less than `FIRE_INTERVAL` ago. */
 export function fire(state: SpaceInvadersState): boolean {
-  if (state.phase !== 'playing' || state.shot) return false;
-  state.shot = { x: state.playerX, y: PLAYER_Y - 16 };
+  if (state.phase !== 'playing' || state.fireCooldown > 0) return false;
+  state.shots.push({ x: state.playerX, y: PLAYER_Y - 16 });
+  state.fireCooldown = FIRE_INTERVAL;
   return true;
 }
 
@@ -136,8 +145,12 @@ export function step(state: SpaceInvadersState, dt: number, random = Math.random
   }
   if (atEdge) state.direction = state.direction === 1 ? -1 : 1;
 
-  if (state.shot) {
-    const shot = state.shot;
+  // Holding the fire button keeps firing, as often as the cooldown allows.
+  state.fireCooldown = Math.max(0, state.fireCooldown - dt);
+  if (state.firing) fire(state);
+
+  const flying: Projectile[] = [];
+  for (const shot of state.shots) {
     const fromY = shot.y;
     shot.y -= SHOT_SPEED * dt;
     // Check the whole path, so a fast shot can't skip an invader, and hit the
@@ -148,11 +161,11 @@ export function step(state: SpaceInvadersState, dt: number, random = Math.random
     if (hit) {
       state.score += hit.points;
       state.invaders = state.invaders.filter((i) => i !== hit);
-      state.shot = null;
-    } else if (shot.y < 0) {
-      state.shot = null;
+    } else if (shot.y >= 0) {
+      flying.push(shot);
     }
   }
+  state.shots = flying;
 
   state.bombTimer -= dt;
   if (state.bombTimer <= 0 && state.invaders.length > 0) {
@@ -173,7 +186,7 @@ export function step(state: SpaceInvadersState, dt: number, random = Math.random
     state.wave += 1;
     state.invaders = createWave();
     state.direction = 1;
-    state.shot = null;
+    state.shots = [];
     state.bombs = [];
   }
 
@@ -210,7 +223,7 @@ function draw(ctx: CanvasRenderingContext2D, state: SpaceInvadersState) {
   for (const invader of state.invaders) drawInvader(ctx, invader);
 
   ctx.fillStyle = colors.text;
-  if (state.shot) ctx.fillRect(state.shot.x - 2, state.shot.y - 10, 4, 14);
+  for (const shot of state.shots) ctx.fillRect(shot.x - 2, shot.y - 10, 4, 14);
 
   ctx.fillStyle = colors.danger;
   for (const bomb of state.bombs) ctx.fillRect(bomb.x - 3, bomb.y - 6, 6, 12);
@@ -260,7 +273,7 @@ export const spaceInvaders: CarnivalGame = {
 
     let state = createState();
     let scoreRecorded = false;
-    const held = { left: false, right: false };
+    const held = { left: false, right: false, fire: false };
     let pointerX: number | null = null;
 
     const restartOrFire = () => {
@@ -277,6 +290,7 @@ export const spaceInvaders: CarnivalGame = {
       else if (event.key === 'ArrowRight' || event.key === 'd') held.right = true;
       else if (event.key === ' ') {
         // Firing leaves the mouse in charge of movement.
+        held.fire = true;
         if (!event.repeat) restartOrFire();
         event.preventDefault();
         return;
@@ -287,11 +301,13 @@ export const spaceInvaders: CarnivalGame = {
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft' || event.key === 'a') held.left = false;
       if (event.key === 'ArrowRight' || event.key === 'd') held.right = false;
+      if (event.key === ' ') held.fire = false;
     };
     // A key released outside the window never sends keyup.
     const onBlur = () => {
       held.left = false;
       held.right = false;
+      held.fire = false;
     };
     const toCanvasX = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -324,6 +340,7 @@ export const spaceInvaders: CarnivalGame = {
       } else {
         state.move = held.left === held.right ? 0 : held.left ? -1 : 1;
       }
+      state.firing = held.fire;
       step(state, dt);
       if (state.phase === 'over' && !scoreRecorded) {
         recordScore(spaceInvaders.id, state.score);

@@ -6,7 +6,8 @@ Hold off four rows of marching invaders: purple, red, orange and green.
 
 - Move the cannon with the left and right arrow keys (or `A` and `D`), or by
   moving the mouse over the game.
-- Press space or click to fire. Only one shot can be in the air at a time.
+- Press space or click to fire. Hold space, or press it quickly, for rapid
+  fire: the cannon fires at most once every 20 ms.
 - The invaders march sideways, and drop a step each time they reach a side.
   They march faster as their numbers fall, and drop bombs on you.
 - You have 3 lives. A bomb that hits your cannon costs a life.
